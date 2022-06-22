@@ -102,20 +102,21 @@ def get_ndvi_lst(metadata, settings):
         filepath = SDS_tools.get_filepath(settings['inputs'],satname)       
         filenames = metadata[satname]['filenames']
         
-        print('')
+        #print('')
+        print(satname,': \nSaving as tif files')
         
          # loop through the images
         for i in range(len(filenames)):
-
-            print('\r%s:   %d%%' % (satname,int(((i+1)/len(filenames))*100)), end='')
+            print('\r%d%%' % (int(((i+1)/len(filenames))*100)), end='')
+            #print('\r%s: Saving as tif files  %d%%' % (satname,int(((i+1)/len(filenames))*100)), end='')
 
             # get image filename
             fn = SDS_tools.get_filenames(filenames[i],filepath, satname)
-            # preprocess image (cloud mask + pansharpening/downsampling)
-            im_ms, georef, cloud_mask, im_extra, im_QA, im_nodata = SDS_preprocess.preprocess_single(fn, satname, settings['cloud_mask_issue'])
+                
+            # preprocess image (cloud mask)
+            im_ms, georef, cloud_mask, im_QA, im_nodata = SDS_preprocess.preprocess_single(fn, satname, settings['cloud_mask_issue'])
             # get image spatial reference system (epsg code) from metadata dict
             image_epsg = metadata[satname]['epsg'][i]
-            
             # compute cloud_cover percentage (with no data pixels)
             cloud_cover_combined = np.divide(sum(sum(cloud_mask.astype(int))),
                                     (cloud_mask.shape[0]*cloud_mask.shape[1]))
@@ -131,13 +132,26 @@ def get_ndvi_lst(metadata, settings):
             if cloud_cover > settings['cloud_thresh']:
                 continue
             
-            # Compute and save NDVI and LST 
-            dataset = gdal.Open(fn)
+            # Compute and save NDVI and LST ##
+            if satname in ['S2']:
+                dataset = gdal.Open(fn[0])
+            else:
+                dataset = gdal.Open(fn)
+            
+            # Un-scale Surface Reflectance to compute NDVI
+            if satname in ['S2']:
+                coef = 1e-4
+                offset = 0.0
+            else:
+                coef = 2.75e-05
+                offset = -0.2
+            im_nir = coef * im_ms[:,:,3] + offset
+            im_red = coef * im_ms[:,:,2] + offset
             
             # Compute NDVI                
-            ndvi = SDS_tools.nd_index(im_ms[:,:,3], im_ms[:,:,2], cloud_mask)
+            ndvi = SDS_tools.nd_index(im_nir, im_red, cloud_mask)
 
-            #Get projection
+            # Get projection
             prj = dataset.GetProjection()
             geotransform = dataset.GetGeoTransform()
             
@@ -149,10 +163,10 @@ def get_ndvi_lst(metadata, settings):
             columns, rows = (band.XSize, band.YSize)
             
             ndvi_ds = driver.Create(output_file_ndvi, 
-                                   columns, 
-                                   rows, 
-                                   1, 
-                                   gdal.GDT_Int32)
+                                    columns, 
+                                    rows, 
+                                    1, 
+                                    gdal.GDT_Int32)
 
             ##writting output raster
             ndvi_ds.GetRasterBand(1).WriteArray(ndvi*10000)
@@ -174,10 +188,10 @@ def get_ndvi_lst(metadata, settings):
                 lst = im_ms[:,:,5]
                 output_file_lst = os.path.join(filepath_lst,filenames[i])
                 lst_ds = driver.Create(output_file_lst, 
-                                   columns, 
-                                   rows, 
-                                   1, 
-                                   band.DataType)
+                                    columns, 
+                                    rows, 
+                                    1, 
+                                    band.DataType)
                 lst_ds.GetRasterBand(1).WriteArray( lst )
                 lst_ds.SetGeoTransform(geotransform)
                 lst_ds.SetProjection( srs.ExportToWkt() )
@@ -188,7 +202,6 @@ def get_ndvi_lst(metadata, settings):
             
             
         ### Save every datasets as zarr files ###
-        
         print('\nSaving NDVI as Zarr')
         # filepath to store the NDVI zarr file
         filepath_ndvi_zarr = os.path.join(filepath_data, sitename, satname, 'NDVI_zarr')                
@@ -199,8 +212,12 @@ def get_ndvi_lst(metadata, settings):
         # Create Xarray dataset
         da = create_xarray(files)
         
-        #Convert Floats to Integers
-        da['band'] = da.band.astype('int16')
+        # Convert Floats to Integers
+        da['band'] = da.band.astype('int32')
+        
+        # Add epsg to the dataset
+        da = da.assign_coords(spatial_ref = metadata[satname]['epsg'][0])
+        da = da.assign_attrs(crs = 'epsg:'+str(metadata['S2']['epsg'][0]), grid_mapping = 'spatial_ref')
         
         # Save as a zarr file
         da.to_zarr(filepath_ndvi_zarr, mode='a')
@@ -217,8 +234,12 @@ def get_ndvi_lst(metadata, settings):
             # Create Xarray dataset
             da = create_xarray(files)
 
-            #Convert Floats to Integers
-            da['band'] = da.band.astype('int16')
+            # Convert Floats to Integers
+            da['band'] = da.band.astype('int32')
+            
+            # Add epsg to the dataset
+            da = da.assign_coords(spatial_ref = metadata[satname]['epsg'][0])
+            da = da.assign_attrs(crs = 'epsg:'+str(metadata['S2']['epsg'][0]), grid_mapping = 'spatial_ref')
 
             # Save as a zarr file
             da.to_zarr(filepath_lst_zarr, mode='a')

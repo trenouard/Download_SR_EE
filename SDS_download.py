@@ -197,11 +197,10 @@ def retrieve_images(inputs):
                 metadict = {'filename':im_fn[''],'acc_georef':georef_accs[i],
                             'epsg':im_epsg[i]}
     
-            ############ No LST ##########################"
+            ############ No LST ##########################
             # Sentinel-2 download
             elif satname in ['S2']:
                 bands['10m'] = [im_bands[1], im_bands[2], im_bands[3], im_bands[7]] # multispectral bands
-                bands['20m'] = [im_bands[10]] # SWIR band
                 bands['60m'] = [im_bands[22]] # QA band
                 for key in bands.keys():
                     im_fn[key] = im_date + '_' + satname + '_' + inputs['sitename'] + '_' + key + suffix
@@ -224,8 +223,7 @@ def retrieve_images(inputs):
                     try:
                         im_ee = ee.Image(im_meta['id'])
                         local_data_10m = download_tif(im_ee, inputs['polygon'], bands['10m'], filepaths[1])
-                        local_data_20m = download_tif(im_ee, inputs['polygon'], bands['20m'], filepaths[2])
-                        local_data_60m = download_tif(im_ee, inputs['polygon'], bands['60m'], filepaths[3])
+                        local_data_60m = download_tif(im_ee, inputs['polygon'], bands['60m'], filepaths[2])
                         break
                     except:
                         continue
@@ -235,16 +233,11 @@ def retrieve_images(inputs):
                 except: # overwrite if already exists
                     os.remove(os.path.join(filepaths[1], im_fn['10m']))
                     os.rename(local_data_10m, os.path.join(filepaths[1], im_fn['10m']))
-                try: # 20m
-                    os.rename(local_data_20m, os.path.join(filepaths[2], im_fn['20m']))
-                except: # overwrite if already exists
-                    os.remove(os.path.join(filepaths[2], im_fn['20m']))
-                    os.rename(local_data_20m, os.path.join(filepaths[2], im_fn['20m']))
                 try: # 60m
-                    os.rename(local_data_60m, os.path.join(filepaths[3], im_fn['60m']))
+                    os.rename(local_data_60m, os.path.join(filepaths[2], im_fn['60m']))
                 except: # overwrite if already exists
-                    os.remove(os.path.join(filepaths[3], im_fn['60m']))
-                    os.rename(local_data_60m, os.path.join(filepaths[3], im_fn['60m']))
+                    os.remove(os.path.join(filepaths[2], im_fn['60m']))
+                    os.rename(local_data_60m, os.path.join(filepaths[2], im_fn['60m']))
                 # metadata for .txt file
                 filename_txt = im_fn['10m'].replace('_10m','').replace('.tif','')
                 metadict = {'filename':im_fn['10m'],'acc_georef':georef_accs[i],
@@ -303,7 +296,7 @@ def get_metadata(inputs):
     # loop through the satellite missions
     for satname in ['L5','L7','L8','S2']:
         # if a folder has been created for the given satellite mission
-        if satname in os.listdir(filepath):
+        if satname in inputs['sat_list']:
             # update the metadata dict
             metadata[satname] = {'filenames':[], 'acc_georef':[], 'epsg':[], 'dates':[]}
             # directory where the metadata .txt files are stored
@@ -526,13 +519,10 @@ def create_folder_structure(im_folder, satname):
     # one folder for the metadata (common to all satellites)
     filepaths = [os.path.join(im_folder, satname, 'meta')]
     # subfolders depending on satellite mission
-    if satname == 'L5':
-        filepaths.append(os.path.join(im_folder, satname, '30m'))
-    elif satname in ['L7','L8']:
+    if satname in ['L5','L7','L8']:
         filepaths.append(os.path.join(im_folder, satname, '30m'))
     elif satname in ['S2']:
         filepaths.append(os.path.join(im_folder, satname, '10m'))
-        filepaths.append(os.path.join(im_folder, satname, '20m'))
         filepaths.append(os.path.join(im_folder, satname, '60m'))
     # create the subfolders if they don't exist already
     for fp in filepaths:
@@ -697,7 +687,6 @@ def merge_overlapping_images(metadata,inputs):
             for index in range(len(idx_dup)):
                 # image names
                 fn_im.append([os.path.join(filepath, 'S2', '10m', filenames[idx_dup[index]]),
-                      os.path.join(filepath, 'S2', '20m',  filenames[idx_dup[index]].replace('10m','20m')),
                       os.path.join(filepath, 'S2', '60m',  filenames[idx_dup[index]].replace('10m','60m')),
                       os.path.join(filepath, 'S2', 'meta', filenames[idx_dup[index]].replace('_10m','').replace('.tif','.txt'))])
                 # bounding polygons
@@ -725,8 +714,8 @@ def merge_overlapping_images(metadata,inputs):
                 idx_keep = np.where(contain_all)[0][0]
                 for i in [_ for _ in range(len(idx_dup)) if not _ == idx_keep]:
                     # print('removed %s'%(fn_im[i][-1]))
-                    # remove the 3 .tif files + the .txt file
-                    for k in range(4):  
+                    # remove the 2 .tif files + the .txt file
+                    for k in range(3):  
                         os.chmod(fn_im[i][k], 0o777)
                         os.remove(fn_im[i][k])
                     total_removed_step1 += 1
@@ -765,10 +754,9 @@ def merge_overlapping_images(metadata,inputs):
             # remove the last image: 3 .tif files + the .txt file
             idx_last = [pairs[_] for _ in np.where(pair_first == idx)[0]][-1][-1]
             fn_im = [os.path.join(filepath, 'S2', '10m', filenames[idx_last]),
-                     os.path.join(filepath, 'S2', '20m',  filenames[idx_last].replace('10m','20m')),
                      os.path.join(filepath, 'S2', '60m',  filenames[idx_last].replace('10m','60m')),
                      os.path.join(filepath, 'S2', 'meta', filenames[idx_last].replace('_10m','').replace('.tif','.txt'))]
-            for k in range(4):  
+            for k in range(3):  
                 os.chmod(fn_im[k], 0o777)
                 os.remove(fn_im[k]) 
             # store the index of the pair to remove it outside the loop
@@ -783,7 +771,6 @@ def merge_overlapping_images(metadata,inputs):
         fn_im = []
         for index in range(len(pair)):
             fn_im.append([os.path.join(filepath, 'S2', '10m', filenames[pair[index]]),
-                  os.path.join(filepath, 'S2', '20m',  filenames[pair[index]].replace('10m','20m')),
                   os.path.join(filepath, 'S2', '60m',  filenames[pair[index]].replace('10m','60m')),
                   os.path.join(filepath, 'S2', 'meta', filenames[pair[index]].replace('_10m','').replace('.tif','.txt'))])
         # get polygon for first image
@@ -795,20 +782,20 @@ def merge_overlapping_images(metadata,inputs):
         # check if epsg are the same
         if not im_epsg0 == im_epsg1:
             print('WARNING: there was an error as two S2 images do not have the same epsg,'+
-                  ' please open an issue on Github at https://github.com/kvos/CoastSat/issues'+
+                  ' please open an issue on Github at https://github.com/Space4Dev/coastline-predictor/issues'+
                   ' and include your script so we can find out what happened.')
             break
         # check if one image contains the other one
         if polygon0.contains(polygon1):  
             # if polygon0 contains polygon1, remove files for polygon1
-            for k in range(4):  # remove the 3 .tif files + the .txt file
+            for k in range(3):  # remove the 3 .tif files + the .txt file
                 os.chmod(fn_im[1][k], 0o777)
                 os.remove(fn_im[1][k])
             # print('removed 1')
             continue
         elif polygon1.contains(polygon0):
             # if polygon1 contains polygon0, remove image0
-            for k in range(4):   # remove the 3 .tif files + the .txt file
+            for k in range(3):   # remove the 3 .tif files + the .txt file
                 os.chmod(fn_im[0][k], 0o777)
                 os.remove(fn_im[0][k])
             # print('removed 0')
@@ -820,7 +807,7 @@ def merge_overlapping_images(metadata,inputs):
         else:
             for index in range(len(pair)):
                 # read image
-                im_ms, georef, cloud_mask, im_extra, im_QA, im_nodata = SDS_preprocess.preprocess_single(fn_im[index], sat, False)
+                im_ms, georef, cloud_mask, im_QA, im_nodata = SDS_preprocess.preprocess_single(fn_im[index], sat, False)
                 # in Sentinel2 images close to the edge of the image there are some artefacts,
                 # that are squares with constant pixel intensities. They need to be masked in the
                 # raster (GEOTIFF). It can be done using the image standard deviation, which
@@ -834,29 +821,15 @@ def merge_overlapping_images(metadata,inputs):
                     mask10 = morphology.dilation(im_binary, morphology.square(3))
                     # mask the 10m .tif file (add no_data where mask is True)
                     SDS_tools.mask_raster(fn_im[index][0], mask10)    
-                    # now calculate the mask for the 20m band (SWIR1)
-                    # for the older version of the ee api calculate the image std again 
-                    if int(ee.__version__[-3:]) <= 201:
-                        # calculate std to create another mask for the 20m band (SWIR1)
-                        im_std = SDS_tools.image_std(im_extra,1)
-                        im_binary = np.logical_or(im_std < 1e-6, np.isnan(im_std))
-                        mask20 = morphology.dilation(im_binary, morphology.square(3))    
-                    # for the newer versions just resample the mask for the 10m bands
-                    else:
-                        # create mask for the 20m band (SWIR1) by resampling the 10m one
-                        mask20 = ndimage.zoom(mask10,zoom=1/2,order=0)
-                        mask20 = transform.resize(mask20, im_extra.shape, mode='constant',
-                                                  order=0, preserve_range=True)
-                        mask20 = mask20.astype(bool)     
-                    # mask the 20m .tif file (im_extra)
-                    SDS_tools.mask_raster(fn_im[index][1], mask20)
-                    # create a mask for the 60m QA band by resampling the 20m one
-                    mask60 = ndimage.zoom(mask20,zoom=1/3,order=0)
+                    
+                    # create a mask for the 60m QA band by resampling the 10m one
+                    mask60 = ndimage.zoom(mask10,zoom=1/6,order=0)
                     mask60 = transform.resize(mask60, im_QA.shape, mode='constant',
                                               order=0, preserve_range=True)
                     mask60 = mask60.astype(bool)
                     # mask the 60m .tif file (im_QA)
-                    SDS_tools.mask_raster(fn_im[index][2], mask60)   
+                    SDS_tools.mask_raster(fn_im[index][1], mask60)   
+                    
                     # make a figure for quality control/debugging
                     # im_RGB = SDS_preprocess.rescale_image_intensity(im_ms[:,:,[2,1,0]], cloud_mask, 99.9)
                     # fig,ax= plt.subplots(2,3,tight_layout=True)
@@ -864,8 +837,6 @@ def merge_overlapping_images(metadata,inputs):
                     # ax[0,0].set_title('RGB original')
                     # ax[1,0].imshow(mask10)
                     # ax[1,0].set_title('Mask 10m')
-                    # ax[0,1].imshow(mask20)
-                    # ax[0,1].set_title('Mask 20m')
                     # ax[1,1].imshow(mask60)
                     # ax[1,1].set_title('Mask 60 m')
                     # ax[0,2].imshow(im_QA)
@@ -892,12 +863,12 @@ def merge_overlapping_images(metadata,inputs):
     
             # open both metadata files
             metadict0 = dict([])
-            with open(fn_im[0][3], 'r') as f:
+            with open(fn_im[0][2], 'r') as f:
                 metadict0['filename'] = f.readline().split('\t')[1].replace('\n','')
                 metadict0['acc_georef'] = float(f.readline().split('\t')[1].replace('\n',''))
                 metadict0['epsg'] = int(f.readline().split('\t')[1].replace('\n',''))
             metadict1 = dict([])
-            with open(fn_im[1][3], 'r') as f:
+            with open(fn_im[1][2], 'r') as f:
                 metadict1['filename'] = f.readline().split('\t')[1].replace('\n','')
                 metadict1['acc_georef'] = float(f.readline().split('\t')[1].replace('\n',''))
                 metadict1['epsg'] = int(f.readline().split('\t')[1].replace('\n',''))
@@ -907,12 +878,12 @@ def merge_overlapping_images(metadata,inputs):
             # add new name
             metadict0['filename'] =  metadict0['filename'].split('.')[0] + '_merged.tif'
             # remove the old metadata.txt files
-            os.chmod(fn_im[0][3], 0o777)
-            os.remove(fn_im[0][3])
-            os.chmod(fn_im[1][3], 0o777)
-            os.remove(fn_im[1][3])        
+            os.chmod(fn_im[0][2], 0o777)
+            os.remove(fn_im[0][2])
+            os.chmod(fn_im[1][2], 0o777)
+            os.remove(fn_im[1][2])        
             # rewrite the .txt file with a new metadata file
-            fn_new = fn_im[0][3].split('.')[0] + '_merged.txt'
+            fn_new = fn_im[0][2].split('.')[0] + '_merged.txt'
             with open(fn_new, 'w') as f:
                 for key in metadict0.keys():
                     f.write('%s\t%s\n'%(key,metadict0[key]))  

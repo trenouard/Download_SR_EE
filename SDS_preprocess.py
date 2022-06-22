@@ -51,9 +51,6 @@ def preprocess_single(fn, satname, cloud_mask_issue):
         coordinates of the top-left pixel of the image
     cloud_mask: np.array
         2D cloud mask with True where cloud pixels are
-    im_extra : np.array
-        2D array containing the 20m resolution SWIR band for Sentinel-2 (and the 15m resolution
-        panchromatic band for Landsat 7 and Landsat 8. This field is empty for Landsat 5) Here empty for Landsat 5-7-8  because not needed.
     im_QA: np.array
         2D array containing the QA band, from which the cloud_mask can be computed.
     im_nodata: np.array
@@ -93,10 +90,8 @@ def preprocess_single(fn, satname, cloud_mask_issue):
         im_nodata = np.logical_or(im_zeros, im_nodata)   
         # update cloud mask with all the nodata pixels
         cloud_mask = np.logical_or(cloud_mask, im_nodata)
-        
-        # no extra image for Landsat 5 (they are all 30 m bands)
-        im_extra = []
 
+        
     #=============================================================================================#
     # L7 images
     #=============================================================================================#
@@ -128,7 +123,6 @@ def preprocess_single(fn, satname, cloud_mask_issue):
         im_nodata = np.logical_or(im_zeros, im_nodata)   
         # update cloud mask with all the nodata pixels
         cloud_mask = np.logical_or(cloud_mask, im_nodata)
-        im_extra = []
 
 
     #=============================================================================================#
@@ -162,7 +156,7 @@ def preprocess_single(fn, satname, cloud_mask_issue):
         im_nodata = np.logical_or(im_zeros, im_nodata)   
         # update cloud mask with all the nodata pixels
         cloud_mask = np.logical_or(cloud_mask, im_nodata)
-        im_extra = []
+        
 
     #=============================================================================================#
     # S2 images
@@ -175,40 +169,23 @@ def preprocess_single(fn, satname, cloud_mask_issue):
         georef = np.array(data.GetGeoTransform())
         bands = [data.GetRasterBand(k + 1).ReadAsArray() for k in range(data.RasterCount)]
         im10 = np.stack(bands, 2)
-        im10 = im10.astype(np.int32)
-        #im10 = im10/10000 # TOA scaled to 10000
+        im_ms = im10.astype(np.int32)
 
         # if image contains only zeros (can happen with S2), skip the image
-        if sum(sum(sum(im10))) < 1:
+        if sum(sum(sum(im_ms/10000))) < 1:
             im_ms = []
             georef = []
             # skip the image by giving it a full cloud_mask
             cloud_mask = np.ones((im10.shape[0],im10.shape[1])).astype('bool')
-            return im_ms, georef, cloud_mask, [], [], []
-
+            print('ah')
+            return im_ms, georef, cloud_mask, [], []
+       
         # size of 10m bands
         nrows = im10.shape[0]
         ncols = im10.shape[1]
 
-        # read 20m band (SWIR1)
-        fn20 = fn[1]
-        data = gdal.Open(fn20, gdal.GA_ReadOnly)
-        bands = [data.GetRasterBand(k + 1).ReadAsArray() for k in range(data.RasterCount)]
-        im20 = np.stack(bands, 2)
-        im20 = im20.astype(np.int32)
-        im20 = im20[:,:,0]
-        #im20 = im20/10000 # TOA scaled to 10000
-
-        # resize the image using bilinear interpolation (order 1)
-        im_swir = transform.resize(im20, (nrows, ncols), order=1, preserve_range=True,
-                                   mode='constant')
-        im_swir = np.expand_dims(im_swir, axis=2)
-
-        # append down-sampled SWIR1 band to the other 10m bands
-        im_ms = np.append(im10, im_swir, axis=2)
-
         # create cloud mask using 60m QA band (not as good as Landsat cloud cover)
-        fn60 = fn[2]
+        fn60 = fn[1]
         data = gdal.Open(fn60, gdal.GA_ReadOnly)
         bands = [data.GetRasterBand(k + 1).ReadAsArray() for k in range(data.RasterCount)]
         im60 = np.stack(bands, 2)
@@ -223,14 +200,13 @@ def preprocess_single(fn, satname, cloud_mask_issue):
             im_inf = np.isin(im_ms[:,:,k], -np.inf)
             im_nan = np.isnan(im_ms[:,:,k])
             im_nodata = np.logical_or(np.logical_or(im_nodata, im_inf), im_nan)
-        # check if there are pixels with 0 intensity in the Green, NIR and SWIR bands and add those
-        # to the cloud mask as otherwise they will cause errors when calculating the NDWI and MNDWI
+            
+        # check if there are pixels with 0 intensity in the Red and NIR bands and add those
+        # to the cloud mask as otherwise they will cause errors when calculating the NDVI
         im_zeros = np.ones(im_nodata.shape).astype(bool)
-        im_zeros = np.logical_and(np.isin(im_ms[:,:,1],0), im_zeros) # Green
+        im_zeros = np.logical_and(np.isin(im_ms[:,:,2],0), im_zeros) # Red
         im_zeros = np.logical_and(np.isin(im_ms[:,:,3],0), im_zeros) # NIR
-        im_20_zeros = transform.resize(np.isin(im20,0),(nrows, ncols), order=0,
-                                       preserve_range=True, mode='constant').astype(bool)
-        im_zeros = np.logical_and(im_20_zeros, im_zeros) # SWIR1
+
         # add to im_nodata
         im_nodata = np.logical_or(im_zeros, im_nodata)
         # dilate if image was merged as there could be issues at the edges
@@ -240,10 +216,7 @@ def preprocess_single(fn, satname, cloud_mask_issue):
         # update cloud mask with all the nodata pixels
         cloud_mask = np.logical_or(cloud_mask, im_nodata)
 
-        # the extra image is the 20m SWIR band
-        im_extra = im20
-
-    return im_ms, georef, cloud_mask, im_extra, im_QA, im_nodata
+    return im_ms, georef, cloud_mask, im_QA, im_nodata
 
 
 ###################################################################################################
@@ -549,7 +522,7 @@ def save_jpg(metadata, settings, **kwargs):
             # image filename
             fn = SDS_tools.get_filenames(filenames[i],filepath, satname)
             # read and preprocess image
-            im_ms, georef, cloud_mask, im_extra, im_QA, im_nodata = preprocess_single(fn, satname, settings['cloud_mask_issue'])
+            im_ms, georef, cloud_mask, im_QA, im_nodata = preprocess_single(fn, satname, settings['cloud_mask_issue'])
 
             # compute cloud_cover percentage (with no data pixels)
             cloud_cover_combined = np.divide(sum(sum(cloud_mask.astype(int))),

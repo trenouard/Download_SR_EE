@@ -314,9 +314,8 @@ def get_filepath(inputs,satname):
     elif satname == 'S2':
         # access downloaded Sentinel 2 images
         filepath10 = os.path.join(filepath_data, sitename, satname, '10m')
-        filepath20 = os.path.join(filepath_data, sitename, satname, '20m')
         filepath60 = os.path.join(filepath_data, sitename, satname, '60m')
-        filepath = [filepath10, filepath20, filepath60]
+        filepath = [filepath10, filepath60]
             
     return filepath
     
@@ -343,11 +342,9 @@ def get_filenames(filename, filepath, satname):
     if satname in ['L5', 'L7', 'L8']:
         fn = os.path.join(filepath, filename)
     if satname == 'S2':
-        filename20 = filename.replace('10m','20m')
         filename60 = filename.replace('10m','60m')
         fn = [os.path.join(filepath[0], filename),
-              os.path.join(filepath[1], filename20),
-              os.path.join(filepath[2], filename60)]
+              os.path.join(filepath[1], filename60)]
         
     return fn
 
