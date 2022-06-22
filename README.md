@@ -10,8 +10,8 @@ Download Landsat and Sentinel Surface Reflectance products from GEE
     * [1.1 Create an environment with Anaconda](#section_1_1)
     * [1.2 Activate Google Earth Engine Python API](#section_1_2)
 * [2. Usage](#chapter2)
-    * [2.1 Retrieval of the satellite images](#section_2_1)
-
+    * [2.1 Retrieval of the satellite images](#section_2_1) 
+    * [2.2 NDVI/LST computation](#section_2_2)
 ## 1. Installation <a class="anchor" id="chapter1"></a>
 
 ### 1.0 Clone the repository from GitHub <a class="anchor" id="section_1_0"></a>
