@@ -27,7 +27,7 @@ import matplotlib.patches as mpatches
 
 
 # Modules
-import SDS_tools, SDS_preprocess
+from utils import SDS_tools, SDS_preprocess
 
 np.seterr(all='ignore') # raise/ignore divisions by 0 and nans
 
