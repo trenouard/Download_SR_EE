@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 from skimage import morphology, transform
 
 # Modules
-import SDS_preprocess, SDS_tools, gdal_merge
+from utils import SDS_preprocess, SDS_tools, gdal_merge
 
 np.seterr(all='ignore') # raise/ignore divisions by 0 and nans
 
