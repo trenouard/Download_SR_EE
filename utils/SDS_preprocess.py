@@ -18,7 +18,7 @@ from pylab import ginput
 from shapely import geometry
 
 # Modules
-import SDS_tools
+from utils import SDS_tools
 
 np.seterr(all='ignore') # raise/ignore divisions by 0 and nans
 
