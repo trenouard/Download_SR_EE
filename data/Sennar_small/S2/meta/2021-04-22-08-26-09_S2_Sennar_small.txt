@@ -1,0 +1,3 @@
+filename	2021-04-22-08-26-09_S2_Sennar_small_10m.tif
+acc_georef	1
+epsg	32636
