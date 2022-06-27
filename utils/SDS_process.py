@@ -217,7 +217,7 @@ def get_ndvi_lst(metadata, settings):
         
         # Add epsg to the dataset
         da = da.assign_coords(spatial_ref = metadata[satname]['epsg'][0])
-        da = da.assign_attrs(crs = 'epsg:'+str(metadata['S2']['epsg'][0]), grid_mapping = 'spatial_ref')
+        da = da.assign_attrs(crs = 'epsg:'+str(metadata[satname]['epsg'][0]), grid_mapping = 'spatial_ref')
         
         # Save as a zarr file
         da.to_zarr(filepath_ndvi_zarr, mode='a')
@@ -239,7 +239,7 @@ def get_ndvi_lst(metadata, settings):
             
             # Add epsg to the dataset
             da = da.assign_coords(spatial_ref = metadata[satname]['epsg'][0])
-            da = da.assign_attrs(crs = 'epsg:'+str(metadata['S2']['epsg'][0]), grid_mapping = 'spatial_ref')
+            da = da.assign_attrs(crs = 'epsg:'+str(metadata[satname]['epsg'][0]), grid_mapping = 'spatial_ref')
 
             # Save as a zarr file
             da.to_zarr(filepath_lst_zarr, mode='a')
